@@ -1,0 +1,44 @@
+name: Deploy to production
+
+on:
+  push:
+    branches:
+    - production
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v3.2.0
+        with:
+          node-version-file: .nvmrc
+          cache: yarn
+
+      - name: Make envfile
+        uses: SpicyPizza/create-envfile@v1.3
+        with:
+          envkey_DEBUG: false
+          envkey_REACT_APP_API: "https://api.stud.com"
+          envkey_REACT_APP_GG_APP_ID: "foobar"
+          envkey_REACT_APP_FB_APP_ID: "foobar"
+
+      - name: yarn install and build
+        run: |
+          yarn
+          yarn build
+
+      - name: 🚀 Deploy to www.stud.com
+        env:
+          ARGS: "-rltgoDzvO --delete -vvv"
+          SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
+          REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
+          REMOTE_USER: ${{ secrets.REMOTE_USER }}
+          TARGET: ${{ secrets.REMOTE_TARGET }}
+          SOURCE: "build/"
+        run: |
+          echo "${SSH_PRIVATE_KEY}" > key.pem
+          chmod 400 key.pem
+          rsync -rltgoDzvO -e "ssh -i key.pem -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" --delete ./build/ "ubuntu@www.stud.com:/var/www/stud_frontend/build"
